@@ -8,6 +8,14 @@ CVE records in the [v5 JSON schema](https://github.com/CVEProject/cve-schema/tre
 
 For Linux, Mac OS, or Windows, you can download a binary release [here](https://github.com/mprpic/cvelint/releases).
 
+### Build from Source
+
+```bash
+$ git clone https://github.com/mprpic/cvelint; cd cvelint
+$ make build
+$ ./bin/cvelint -h
+```
+
 ## Usage
 
 ```bash
