@@ -1,6 +1,6 @@
 # cvelint
 
-CVE records in the [v5 JSON schema](https://github.com/CVEProject/cve-schema/tree/master/schema/v5.0) may include errors that are neither enforceable by a schema, nor validated on the backend in CVE Services when a CVE record is created/updated. This CLI tool aims to validate a record for such errors.
+CVE records in the [v5 JSON schema](https://github.com/CVEProject/cve-schema/tree/master/schema/v5.0) may include errors that are neither enforceable by a schema, nor validated on the backend in CVE Services when a CVE record is created/updated. This CLI tool aims to validate CVE records for such errors.
 
 ## Installation
 
