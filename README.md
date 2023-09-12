@@ -30,3 +30,7 @@ Found 1 error.
 $ ./cvelint -show-rules  # Display available validation rules
 $ ./cvelint -h  # Display help
 ```
+
+## GitHub Action
+
+[cvelint-action](https://github.com/jgamblin/cvelint-action) runs daily and produces a CSV and JSON output of all errors in the current CVE v5 data set.
