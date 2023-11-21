@@ -129,4 +129,7 @@ func main() {
 	linter := internal.Linter{Timestamp: time.Now().UTC(), FileInput: &files}
 	linter.Run(&rules, cna)
 	linter.Print(format)
+	if len(linter.Results) > 0 {
+		os.Exit(1)
+	}
 }
