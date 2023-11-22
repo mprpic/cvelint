@@ -15,10 +15,11 @@ import (
 )
 
 type Linter struct {
-	Timestamp    time.Time
-	FileInput    *[]string
-	FilesChecked int
-	Results      []LintResult
+	Timestamp     time.Time
+	FileInput     *[]string
+	FilesChecked  int
+	Results       []LintResult
+	GenericErrors []string
 }
 
 type LintResult struct {
@@ -29,20 +30,22 @@ type LintResult struct {
 	Rule
 }
 
-func (l *Linter) Run(rules *[]Rule, cna string) {
+func (l *Linter) Run(selectedRules *[]Rule, cna string) {
 	checkedFiles := 0
 	for _, file := range *l.FileInput {
 		cveId := strings.TrimSuffix(file[strings.LastIndex(file, "/")+1:], ".json")
-		jsonBytes, err := os.ReadFile(file)
-		// Convert to string because gjson.Result.Path does not accept []byte
-		json := string(jsonBytes)
+		content, err := os.ReadFile(file)
 		if err != nil {
-			log.Fatalf("ERROR: failed to read JSON file %v", err)
+			l.GenericErrors = append(l.GenericErrors, "Could not read file: "+file)
+			continue
 		}
-		if !gjson.Valid(json) {
-			log.Fatalf("ERROR: invalid JSON file %s", file)
+		// Convert to string because gjson.Result.Path does not accept []byte
+		jsonText := string(content)
+		if !gjson.Valid(jsonText) {
+			l.GenericErrors = append(l.GenericErrors, "File contains invalid JSON: "+file)
+			continue
 		}
-		recordCna := gjson.Get(json, "cveMetadata.assignerShortName").String()
+		recordCna := gjson.Get(jsonText, "cveMetadata.assignerShortName").String()
 		if recordCna == "" {
 			// Not a CVE v5 JSON record, skip.
 			continue
@@ -50,8 +53,8 @@ func (l *Linter) Run(rules *[]Rule, cna string) {
 		if cna != "" && cna != recordCna {
 			continue
 		}
-		for _, rule := range *rules {
-			errors := rule.CheckFunc(&json)
+		for _, rule := range *selectedRules {
+			errors := rule.CheckFunc(&jsonText)
 			for _, e := range errors {
 				l.Results = append(l.Results, LintResult{
 					File:  file,
@@ -90,6 +93,12 @@ func (l *Linter) Print(format string) {
 		} else {
 			fmt.Println(".")
 		}
+
+		fmt.Println()
+		for _, e := range l.GenericErrors {
+			fmt.Printf("ERROR: %s", e)
+		}
+		fmt.Println()
 
 		bold := color.New(color.Bold).Add(color.Underline)
 		red := color.New(color.FgRed)

@@ -116,18 +116,18 @@ func main() {
 	}
 
 	// Collect Rules from specified rule codes
-	var rules []internal.Rule
+	var selectedRules []internal.Rule
 	for ruleCode, _ := range ruleCodes {
 		rule, ok := internal.RuleSet[ruleCode]
 		if !ok {
 			log.Fatalf("ERROR: unknown rule selected: %s", ruleCode)
 		} else {
-			rules = append(rules, rule)
+			selectedRules = append(selectedRules, rule)
 		}
 	}
 
 	linter := internal.Linter{Timestamp: time.Now().UTC(), FileInput: &files}
-	linter.Run(&rules, cna)
+	linter.Run(&selectedRules, cna)
 	linter.Print(format)
 	if len(linter.Results) > 0 {
 		os.Exit(1)
