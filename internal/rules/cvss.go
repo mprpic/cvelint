@@ -15,7 +15,7 @@ func CheckCvssV3BaseSeverity(json *string) []ValidationError {
 		correctSeverity := computeSeverity(score)
 		if severity != correctSeverity {
 			errors = append(errors, ValidationError{
-				Text:     fmt.Sprintf(`Incorrect CVSS v3 severity: "%s" (should be "%s")`, severity, correctSeverity),
+				Text:     fmt.Sprintf(`Incorrect CVSS v3 severity: "%s"; should be "%s"`, severity, correctSeverity),
 				JsonPath: value.Path(*json),
 			})
 		}

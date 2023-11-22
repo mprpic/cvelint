@@ -103,7 +103,12 @@ func (l *Linter) Print(format string) {
 			lastCve = r.CveId
 			fmt.Print("  ")
 			red.Printf("%s  ", r.Code)
-			fmt.Println(r.Error.Text)
+			fmt.Print(r.Error.Text)
+			if r.Error.JsonPath != "" {
+				fmt.Printf(" (at \"%s\")\n", r.Error.JsonPath)
+			} else {
+				fmt.Println()
+			}
 		}
 
 		fmt.Printf("\nFound %d error", len(l.Results))

@@ -30,16 +30,19 @@ func DuplicateRefs(json *string) []ValidationError {
 	var errors []ValidationError
 	data := gjson.GetMany(*json, `containers.cna.references.#.url`, `containers.adp.references.#.url`)
 	var urls = make(map[string]int)
+	var urlPaths = make(map[string]string)
 	for _, v := range data {
 		v.ForEach(func(key, value gjson.Result) bool {
 			urls[value.String()]++
+			urlPaths[value.String()] = value.Path(*json)
 			return true
 		})
 	}
 	for url, count := range urls {
 		if count > 1 {
 			errors = append(errors, ValidationError{
-				Text: fmt.Sprintf("Duplicate reference URL: %s", url),
+				Text:     fmt.Sprintf("Duplicate reference URL: %s", url),
+				JsonPath: urlPaths[url],
 			})
 		}
 	}
