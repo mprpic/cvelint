@@ -94,11 +94,13 @@ func (l *Linter) Print(format string) {
 			fmt.Println(".")
 		}
 
-		fmt.Println()
-		for _, e := range l.GenericErrors {
-			fmt.Printf("ERROR: %s", e)
+		if len(l.GenericErrors) > 0 {
+			fmt.Println()
+			for _, e := range l.GenericErrors {
+				fmt.Printf("ERROR: %s", e)
+			}
+			fmt.Println()
 		}
-		fmt.Println()
 
 		bold := color.New(color.Bold).Add(color.Underline)
 		red := color.New(color.FgRed)
@@ -120,7 +122,7 @@ func (l *Linter) Print(format string) {
 			}
 		}
 
-		fmt.Printf("\nFound %d error", len(l.Results))
+		fmt.Printf("\nFound %d error", len(l.Results)+len(l.GenericErrors))
 		if len(l.Results) != 1 {
 			fmt.Print("s.\n")
 		} else {
