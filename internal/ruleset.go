@@ -48,4 +48,10 @@ var RuleSet = map[string]Rule{
 		Description: "One affected/unknown product is present in CNA container",
 		CheckFunc:   rules.CheckAffectedProduct,
 	},
+	"E007": {
+		Code:        "E007",
+		Name:        "check-invalid-version-string",
+		Description: "Version field contains invalid characters",
+		CheckFunc:   rules.CheckInvalidVersion,
+	},
 }
