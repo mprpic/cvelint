@@ -55,6 +55,8 @@ func CheckAffectedProduct(json *string) []ValidationError {
 // - special characters like "<" or ","
 var validVersionRe = regexp.MustCompile(`^(\*|[a-zA-Z0-9]+[-_:\.a-zA-Z0-9]*)$`)
 
+// CheckInvalidVersion returns an array of detected version-related ValidationError findings.
+// It checks that the affected.versions sub-fields are used correctly.
 func CheckInvalidVersion(json *string) []ValidationError {
 	if gjson.Get(*json, `cveMetadata.state`).String() != "PUBLISHED" {
 		// REJECTED records do not list affected products
