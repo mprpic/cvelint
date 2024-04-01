@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/tidwall/gjson"
 	"regexp"
-	"strings"
 )
 
 func CheckAffectedProduct(json *string) []ValidationError {
@@ -75,9 +74,8 @@ func CheckInvalidVersion(json *string) []ValidationError {
 			for _, version := range affectedVersions.Array() {
 				version := version.String()
 				if !validVersionRe.MatchString(version) {
-					fieldName := versionField[strings.LastIndex(versionField, ".")+1:]
 					errors = append(errors, ValidationError{
-						Text:     fmt.Sprintf("Invalid version string in \"%s\" field: \"%s\"", fieldName, version),
+						Text:     fmt.Sprintf("Invalid version string: \"%s\"", version),
 						JsonPath: versionField,
 					})
 				}
@@ -93,7 +91,7 @@ func CheckInvalidVersion(json *string) []ValidationError {
 				version := atVersion.String()
 				if !validVersionRe.MatchString(version) {
 					errors = append(errors, ValidationError{
-						Text:     fmt.Sprintf("Invalid version string in \"at\" field: \"%s\"", version),
+						Text:     fmt.Sprintf("Invalid version string: \"%s\"", version),
 						JsonPath: "containers.cna.affected.#.versions.#.changes.#.at",
 					})
 				}
