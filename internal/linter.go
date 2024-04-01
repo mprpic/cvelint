@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -31,52 +33,90 @@ type LintResult struct {
 }
 
 func (l *Linter) Run(selectedRules *[]Rule, cna string) {
-	checkedFiles := 0
+	var checkedFiles int64
+	lintResultsChan := make(chan LintResult)
+	genErrorChan := make(chan string)
+	var wg sync.WaitGroup
+
 	for _, file := range *l.FileInput {
-		cveId := strings.TrimSuffix(file[strings.LastIndex(file, "/")+1:], ".json")
-		content, err := os.ReadFile(file)
-		if err != nil {
-			l.GenericErrors = append(l.GenericErrors, "Could not read file: "+file)
-			continue
-		}
-		// Convert to string because gjson.Result.Path does not accept []byte
-		jsonText := string(content)
-		if !gjson.Valid(jsonText) {
-			l.GenericErrors = append(l.GenericErrors, "File contains invalid JSON: "+file)
-			continue
-		}
-		recordCna := gjson.Get(jsonText, "cveMetadata.assignerShortName").String()
-		if recordCna == "" {
-			// Not a CVE v5 JSON record, skip.
-			continue
-		}
-		if cna != "" && cna != recordCna {
-			continue
-		}
-		for _, rule := range *selectedRules {
-			errors := rule.CheckFunc(&jsonText)
-			for _, e := range errors {
-				l.Results = append(l.Results, LintResult{
-					File:  file,
-					CveId: cveId,
-					Cna:   recordCna,
-					Error: e,
-					Rule:  rule,
-				})
+		wg.Add(1)
+		go func(file string) {
+			defer wg.Done()
+			cveId := strings.TrimSuffix(file[strings.LastIndex(file, "/")+1:], ".json")
+			content, err := os.ReadFile(file)
+			if err != nil {
+				genErrorChan <- "Could not read file: " + file
+				return
+			}
+			// Convert to string because gjson.Result.Path does not accept []byte
+			jsonText := string(content)
+			if !gjson.Valid(jsonText) {
+				genErrorChan <- "File contains invalid JSON: " + file
+				return
+			}
+			recordCna := gjson.Get(jsonText, "cveMetadata.assignerShortName").String()
+			if recordCna == "" {
+				// Not a CVE v5 JSON record, skip.
+				return
+			}
+			if cna != "" && cna != recordCna {
+				return
+			}
+			for _, rule := range *selectedRules {
+				errors := rule.CheckFunc(&jsonText)
+				for _, e := range errors {
+					lintResultsChan <- LintResult{
+						File:  file,
+						CveId: cveId,
+						Cna:   recordCna,
+						Error: e,
+						Rule:  rule,
+					}
+				}
+			}
+			atomic.AddInt64(&checkedFiles, 1)
+			fmt.Fprintf(os.Stderr, "\rProcessed %d CVE records...", atomic.LoadInt64(&checkedFiles))
+		}(file)
+	}
+
+	go func() {
+		wg.Wait()
+		close(genErrorChan)
+		close(lintResultsChan)
+	}()
+
+	// Collect errors and lint results from both channels until they are empty.
+	for {
+		select {
+		case lintResult, ok := <-lintResultsChan:
+			if !ok {
+				lintResultsChan = nil
+			} else {
+				l.Results = append(l.Results, lintResult)
+			}
+		case genErr, ok := <-genErrorChan:
+			if !ok {
+				genErrorChan = nil
+			} else {
+				l.GenericErrors = append(l.GenericErrors, genErr)
 			}
 		}
-		checkedFiles++
-
-		sort.Slice(l.Results, func(i, j int) bool {
-			// Sort results alphanumerically by CVE ID (starting from newest)
-			a := strings.Split(l.Results[i].CveId, "-") // CVE-2020-0001 -> [CVE 2020 0001]
-			b := strings.Split(l.Results[j].CveId, "-")
-			i, _ = strconv.Atoi(strings.Join(a[1:], "")) // 20200001
-			j, _ = strconv.Atoi(strings.Join(b[1:], ""))
-			return i > j
-		})
+		if lintResultsChan == nil && genErrorChan == nil {
+			break
+		}
 	}
-	l.FilesChecked = checkedFiles
+
+	sort.Slice(l.Results, func(i, j int) bool {
+		// Sort results alphanumerically by CVE ID (starting from newest)
+		a := strings.Split(l.Results[i].CveId, "-") // CVE-2020-0001 -> [CVE 2020 0001]
+		b := strings.Split(l.Results[j].CveId, "-")
+		i, _ = strconv.Atoi(strings.Join(a[1:], "")) // 20200001
+		j, _ = strconv.Atoi(strings.Join(b[1:], ""))
+		return i > j
+	})
+
+	fmt.Fprintf(os.Stderr, "\r\033[K")
+	l.FilesChecked = int(atomic.LoadInt64(&checkedFiles))
 }
 
 func (l *Linter) Print(format string) {
