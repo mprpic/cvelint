@@ -110,8 +110,15 @@ func (l *Linter) Run(selectedRules *[]Rule, cna string) {
 		// Sort results alphanumerically by CVE ID (starting from newest)
 		a := strings.Split(l.Results[i].CveId, "-") // CVE-2020-0001 -> [CVE 2020 0001]
 		b := strings.Split(l.Results[j].CveId, "-")
-		i, _ = strconv.Atoi(strings.Join(a[1:], "")) // 20200001
-		j, _ = strconv.Atoi(strings.Join(b[1:], ""))
+		// Compare year first
+		yearA, _ := strconv.Atoi(a[1])
+		yearB, _ := strconv.Atoi(b[1])
+		if yearA != yearB {
+			return yearA > yearB
+		}
+		// Compare ID second if year is the same
+		i, _ = strconv.Atoi(a[2])
+		j, _ = strconv.Atoi(b[2])
 		return i > j
 	})
 
