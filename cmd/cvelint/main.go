@@ -7,17 +7,75 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 )
 
+func determineCachePath() string {
+	cachePath := os.Getenv("CVELINT_CACHE_DIR")
+	if cachePath != "" {
+		return cachePath
+	}
+
+	xdgCachePath := os.Getenv("XDG_CACHE_HOME")
+	if xdgCachePath != "" {
+		cachePath = filepath.Join(xdgCachePath, "cvelint")
+	}
+	// Default to $HOME/.cache on Linux/macOS or %APPDATA%/ on Windows
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Println("ERROR: unable to determine home directory:", err)
+		return ".cache" // Default to local directory
+	}
+	if os.PathSeparator == '\\' {
+		return filepath.Join(homeDir, "AppData", "Local", "cvelint")
+	} else {
+		return filepath.Join(homeDir, ".cache", "cvelint")
+	}
+}
+
+func cloneOrUpdateRepo(repoDir string) error {
+	_, err := os.Stat(repoDir)
+	pullCmd := exec.Command("git", "-C", repoDir, "pull", "--rebase")
+	if os.IsNotExist(err) {
+		cloneCmd := exec.Command("git", "clone", "https://github.com/CVEProject/cvelistV5.git", repoDir)
+		if err := cloneCmd.Run(); err != nil {
+			return fmt.Errorf("failed to clone repository: %v", err)
+		}
+		if err := pullCmd.Run(); err != nil {
+			return fmt.Errorf("failed to update repository: %v", err)
+		}
+	} else {
+		// This file is updated on every `git pull`/`git fetch`; we can use it to check if our cache is stale.
+		fetchHeadFile := filepath.Join(repoDir, ".git", "FETCH_HEAD")
+		info, err := os.Stat(fetchHeadFile)
+		if os.IsNotExist(err) || time.Since(info.ModTime()) > 60*time.Minute {
+			// Update repo if it hasn't been updated for more than an hour
+			if err := pullCmd.Run(); err != nil {
+				return fmt.Errorf("failed to update repository: %v", err)
+			}
+		}
+	}
+	return nil
+}
+
 func collectFiles(args []string) ([]string, error) {
 	var files []string
 	var dir string
 	if len(args) == 0 {
-		dir = "."
+		cachePath := determineCachePath()
+		if err := os.MkdirAll(cachePath, os.ModePerm); err != nil {
+			fmt.Println("ERROR: could not create cache directory:", err)
+			return files, err
+		}
+		dir = filepath.Join(cachePath, "cvelistV5")
+		// Clone or update the local cvelistV5 repository
+		if err := cloneOrUpdateRepo(dir); err != nil {
+			return files, err
+		}
 	} else {
 		info, err := os.Stat(args[0])
 		if err != nil {
@@ -51,6 +109,8 @@ func main() {
 	flag.Usage = func() {
 		w := flag.CommandLine.Output()
 		fmt.Fprintf(w, "Usage of %s: [OPTION] [DIRECTORY|FILE]\n", os.Args[0])
+		fmt.Fprintf(w, "\nIf no directory or file is specified, a clone of the cvelistV5 repo is stored in\n")
+		fmt.Fprintf(w, "the location pointed to in CVELINT_CACHE_DIR, or a standard OS cache location.\n\n")
 		flag.PrintDefaults()
 	}
 
@@ -84,12 +144,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	if len(args) != 1 {
-		fmt.Println("ERROR: Incorrect number of arguments")
-		flag.Usage()
-		os.Exit(1)
-	}
-
 	files, err := collectFiles(args)
 	if err != nil {
 		log.Fatalf("ERROR: %s", err)
@@ -106,7 +160,7 @@ func main() {
 		}
 	} else {
 		// Select all rule codes
-		for ruleCode, _ := range internal.RuleSet {
+		for ruleCode := range internal.RuleSet {
 			ruleCodes[ruleCode] = struct{}{}
 		}
 	}
@@ -117,7 +171,7 @@ func main() {
 
 	// Collect Rules from specified rule codes
 	var selectedRules []internal.Rule
-	for ruleCode, _ := range ruleCodes {
+	for ruleCode := range ruleCodes {
 		rule, ok := internal.RuleSet[ruleCode]
 		if !ok {
 			log.Fatalf("ERROR: unknown rule selected: %s", ruleCode)
