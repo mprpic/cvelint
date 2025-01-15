@@ -2,8 +2,10 @@ package rules
 
 import (
 	"fmt"
+	"github.com/package-url/packageurl-go"
 	"github.com/tidwall/gjson"
 	"regexp"
+	"strings"
 )
 
 func CheckAffectedProduct(json *string) []ValidationError {
@@ -52,7 +54,8 @@ func CheckAffectedProduct(json *string) []ValidationError {
 // - "n/a" or "unspecified"
 // - anything that includes whitespace, e.g. "v12.07 and earlier"
 // - special characters like "<" or ","
-var validVersionRe = regexp.MustCompile(`^(\*|[a-zA-Z0-9]+[-_:\.a-zA-Z0-9]*)$`)
+// Special handling exists for versions that look like purls (start with a prefix of `pkg:`)
+var validVersionRe = regexp.MustCompile(`^(\*|[a-zA-Z0-9]+[-_:.a-zA-Z0-9]*)$`)
 
 // CheckInvalidVersion returns an array of detected version-related ValidationError findings.
 // It checks that the affected.versions sub-fields are used correctly.
@@ -73,6 +76,16 @@ func CheckInvalidVersion(json *string) []ValidationError {
 		for _, affectedVersions := range data.Array() {
 			for _, version := range affectedVersions.Array() {
 				version := version.String()
+				if strings.HasPrefix(version, "pkg:") {
+					_, err := packageurl.FromString(version)
+					if err != nil {
+						errors = append(errors, ValidationError{
+							Text:     fmt.Sprintf("Invalid purl in package version string: %s", version),
+							JsonPath: versionField,
+						})
+					}
+					continue
+				}
 				if !validVersionRe.MatchString(version) {
 					errors = append(errors, ValidationError{
 						Text:     fmt.Sprintf("Invalid version string: \"%s\"", version),
