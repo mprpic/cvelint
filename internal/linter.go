@@ -38,6 +38,7 @@ func (l *Linter) Run(selectedRules *[]Rule, cna string) {
 	genErrorChan := make(chan string)
 	var wg sync.WaitGroup
 
+	fmt.Fprintf(os.Stderr, "Processing CVE records...\r")
 	for _, file := range *l.FileInput {
 		wg.Add(1)
 		go func(file string) {
@@ -75,7 +76,6 @@ func (l *Linter) Run(selectedRules *[]Rule, cna string) {
 				}
 			}
 			atomic.AddInt64(&checkedFiles, 1)
-			fmt.Fprintf(os.Stderr, "\rProcessed %d CVE records...", atomic.LoadInt64(&checkedFiles))
 		}(file)
 	}
 
