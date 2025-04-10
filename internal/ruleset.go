@@ -54,4 +54,16 @@ var RuleSet = map[string]Rule{
 		Description: "Version field contains invalid characters",
 		CheckFunc:   rules.CheckInvalidVersion,
 	},
+	"E008": {
+		Code:        "E008",
+		Name:        "check-invalid-vendor-string",
+		Description: "Vendor field contains an invalid value",
+		CheckFunc:   rules.CheckValidVendor,
+	},
+	"E009": {
+		Code:        "E009",
+		Name:        "check-invalid-product-string",
+		Description: "Product field contains an invalid value",
+		CheckFunc:   rules.CheckValidProduct,
+	},
 }

@@ -114,3 +114,48 @@ func CheckInvalidVersion(json *string) []ValidationError {
 
 	return errors
 }
+
+// Values that should be invalid when used in a field that contains some identifying information:
+// - n/a
+// - single special characters like "-" or "/"
+var invalidNameRe = regexp.MustCompile(`^(-|/|n/a)$`)
+
+func CheckValidVendor(json *string) []ValidationError {
+	if gjson.Get(*json, `cveMetadata.state`).String() != "PUBLISHED" {
+		// REJECTED records do not list affected products
+		return nil
+	}
+	var errors []ValidationError
+	data := gjson.Get(*json, `containers.cna.affected.#.vendor`)
+	data.ForEach(func(key, value gjson.Result) bool {
+		vendor := value.String()
+		if invalidNameRe.MatchString(vendor) {
+			errors = append(errors, ValidationError{
+				Text:     fmt.Sprintf("Invalid vendor string: \"%s\"", vendor),
+				JsonPath: "containers.cna.affected.#.vendor",
+			})
+		}
+		return true
+	})
+	return errors
+}
+
+func CheckValidProduct(json *string) []ValidationError {
+	if gjson.Get(*json, `cveMetadata.state`).String() != "PUBLISHED" {
+		// REJECTED records do not list affected products
+		return nil
+	}
+	var errors []ValidationError
+	data := gjson.Get(*json, `containers.cna.affected.#.product`)
+	data.ForEach(func(key, value gjson.Result) bool {
+		product := value.String()
+		if invalidNameRe.MatchString(product) {
+			errors = append(errors, ValidationError{
+				Text:     fmt.Sprintf("Invalid product string: \"%s\"", product),
+				JsonPath: "containers.cna.affected.#.product",
+			})
+		}
+		return true
+	})
+	return errors
+}
