@@ -53,9 +53,9 @@ func CheckAffectedProduct(json *string) []ValidationError {
 // Invalid version string examples:
 // - "n/a" or "unspecified"
 // - anything that includes whitespace, e.g. "v12.07 and earlier"
-// - special characters like "<" or ","
-// Special handling exists for versions that look like purls (start with a prefix of `pkg:`)
-var validVersionRe = regexp.MustCompile(`^(\*|[a-zA-Z0-9]+[-_:.a-zA-Z0-9]*)$`)
+// - special characters like "<" or "," ("*" is allowed)
+// Special handling below for versions that look like purls (start with a prefix of `pkg:`)
+var validVersionRe = regexp.MustCompile(`^(\*|[a-zA-Z0-9]+[-*_:.a-zA-Z0-9]*)$`)
 
 // CheckInvalidVersion returns an array of detected version-related ValidationError findings.
 // It checks that the affected.versions sub-fields are used correctly.
