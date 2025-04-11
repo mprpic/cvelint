@@ -122,14 +122,12 @@ func (l *Linter) Run(selectedRules *[]Rule, cna string) {
 		return i > j
 	})
 
-	fmt.Fprintf(os.Stderr, "\r\033[K")
 	l.FilesChecked = int(atomic.LoadInt64(&checkedFiles))
 }
 
 func (l *Linter) Print(format string) {
 	switch format {
 	case "text":
-		fmt.Printf("")
 		fmt.Printf("Collected %d file", len(*l.FileInput))
 		if len(*l.FileInput) != 1 {
 			fmt.Print("s")

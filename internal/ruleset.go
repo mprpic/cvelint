@@ -66,4 +66,10 @@ var RuleSet = map[string]Rule{
 		Description: "Product field contains an invalid value",
 		CheckFunc:   rules.CheckValidProduct,
 	},
+	"E010": {
+		Code:        "E010",
+		Name:        "check-invalid-self-references",
+		Description: "References contain an invalid self-reference value",
+		CheckFunc:   rules.CheckSelfReference,
+	},
 }

@@ -48,3 +48,36 @@ func DuplicateRefs(json *string) []ValidationError {
 	}
 	return errors
 }
+
+func CheckSelfReference(json *string) []ValidationError {
+	if gjson.Get(*json, `cveMetadata.state`).String() != "PUBLISHED" {
+		// REJECTED records do not list affected products
+		return nil
+	}
+	// A reference in a CVE record to itself is unnecessary. If that is the only
+	// reference, that also violates the CNA rules of having at least one public
+	// reference that exists before the CVE record is created.
+	var errors []ValidationError
+	cveId := gjson.Get(*json, `cveMetadata.cveId`).String()
+	data := gjson.Get(*json, `containers.cna.references.#.url`)
+	validRefFound := false
+	data.ForEach(func(key, value gjson.Result) bool {
+		url := value.String()
+		if url == "https://www.cve.org/CVERecord?id="+cveId {
+			errors = append(errors, ValidationError{
+				Text:     fmt.Sprintf("Unnecessary self-reference URL: %s", url),
+				JsonPath: value.Path(*json),
+			})
+		} else {
+			validRefFound = true
+		}
+		return true
+	})
+	if !validRefFound {
+		errors = append(errors, ValidationError{
+			Text:     "No valid reference found",
+			JsonPath: "containers.cna.references",
+		})
+	}
+	return errors
+}
