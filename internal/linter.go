@@ -121,7 +121,7 @@ func (l *Linter) Run(selectedRules *[]Rule, cna string) {
 		j, _ = strconv.Atoi(b[2])
 		return i > j
 	})
-
+	fmt.Fprintf(os.Stderr, "\r\033[K")
 	l.FilesChecked = int(atomic.LoadInt64(&checkedFiles))
 }
 
@@ -204,6 +204,125 @@ func (l *Linter) Print(format string) {
 		fmt.Println("CVE,CNA,File,RuleName,ErrorCode,ErrorText")
 		for _, r := range l.Results {
 			fmt.Printf("%s,%s,%s,%s,%s,%s,%s\n", r.CveId, r.Cna, r.File, r.Rule.Name, r.Rule.Code, r.Error.JsonPath, r.Error.Text)
+		}
+
+	default:
+		log.Fatal("ERROR: Invalid output format, must be one of: text, json, csv")
+	}
+}
+
+func (l *Linter) PrintSummary(format string) {
+	// Collect error count per error code for each org
+	orgSummary := make(map[string]map[string]int)
+	longestErrorLen := 0
+	for _, result := range l.Results {
+		if _, exists := orgSummary[result.Cna]; !exists {
+			orgSummary[result.Cna] = make(map[string]int)
+		}
+		errorStr := fmt.Sprintf("%s %s", result.Rule.Code, result.Rule.Name)
+		if len(errorStr) > longestErrorLen {
+			longestErrorLen = len(errorStr)
+		}
+		orgSummary[result.Cna][errorStr]++
+	}
+
+	// Get a sorted list of all orgs
+	orgs := make([]string, 0, len(orgSummary))
+	for org, _ := range orgSummary {
+		orgs = append(orgs, org)
+	}
+	sort.Strings(orgs)
+
+	switch format {
+	case "text":
+		bold := color.New(color.Bold).Add(color.Underline)
+		red := color.New(color.FgRed)
+
+		for _, org := range orgs {
+			errors := orgSummary[org]
+
+			// Get sorted error codes for consistent output
+			errorCodes := make([]string, 0, len(errors))
+			for code := range errors {
+				errorCodes = append(errorCodes, code)
+			}
+			sort.Strings(errorCodes)
+
+			// Print organization name once
+			bold.Println(org)
+
+			// Print all errors with consistent indentation
+			for _, errorCode := range errorCodes {
+				count := errors[errorCode]
+				e := strings.Split(errorCode, " ")
+				red.Printf("  %s ", e[0])
+				fmt.Printf("%-*s%d\n", longestErrorLen-3, e[1], count)
+			}
+
+			// Add empty line between organizations
+			fmt.Println("")
+		}
+
+	case "json":
+		fmt.Println("{")
+		fmt.Printf(`  "generatedAt": "%s",`+"\n", l.Timestamp.Format(time.RFC3339))
+		fmt.Println(`  "results": [`)
+
+		for i, org := range orgs {
+			errors := orgSummary[org]
+
+			// Get sorted error codes for consistent output
+			errorCodes := make([]string, 0, len(errors))
+			for code := range errors {
+				errorCodes = append(errorCodes, code)
+			}
+			sort.Strings(errorCodes)
+
+			fmt.Println("    {")
+			fmt.Printf(`      "cna": "%s",`+"\n", org)
+			fmt.Println(`      "errors": [`)
+
+			for j, errorCode := range errorCodes {
+				count := errors[errorCode]
+				e := strings.Split(errorCode, " ")
+				fmt.Printf(`        {"errorCode": "%s", "errorName": "%s", "errorCount": %d}`, e[0], e[1], count)
+				if j+1 != len(errorCodes) {
+					fmt.Print(",")
+				}
+				fmt.Println()
+			}
+
+			fmt.Println(`      ]`)
+			fmt.Print(`    }`)
+			if i+1 != len(orgs) {
+				fmt.Print(",")
+			}
+			fmt.Println()
+		}
+
+		fmt.Println("  ]")
+		fmt.Println("}")
+
+	case "csv":
+		if len(l.Results) == 0 {
+			return
+		}
+		fmt.Println("CNA,ErrorCode,ErrorName,ErrorCount")
+		for _, org := range orgs {
+			errors := orgSummary[org]
+
+			// Get sorted error codes for consistent output
+			errorCodes := make([]string, 0, len(errors))
+			for code := range errors {
+				errorCodes = append(errorCodes, code)
+			}
+			sort.Strings(errorCodes)
+
+			for _, errorCode := range errorCodes {
+				count := errors[errorCode]
+				e := strings.Split(errorCode, " ")
+				fmt.Printf("%s,%s,%s,%d\n", org, e[0], e[1], count)
+			}
 		}
 
 	default:

@@ -120,6 +120,9 @@ func main() {
 	var cna string
 	flag.StringVar(&cna, "cna", "", "Show results for CVE records of a specific CNA")
 
+	var summary bool
+	flag.BoolVar(&summary, "summary", false, "Show a summary of all detected errors")
+
 	var selectRules string
 	flag.StringVar(&selectRules, "select", "", "Comma-separated list of rule codes to enable (default: all)")
 
@@ -182,8 +185,15 @@ func main() {
 
 	linter := internal.Linter{Timestamp: time.Now().UTC(), FileInput: &files}
 	linter.Run(&selectedRules, cna)
-	linter.Print(format)
-	if len(linter.Results) > 0 || len(linter.GenericErrors) > 0 {
-		os.Exit(1)
+
+	if summary {
+		linter.PrintSummary(format)
+		os.Exit(0)
+	} else {
+		linter.Print(format)
+		if len(linter.Results) > 0 || len(linter.GenericErrors) > 0 {
+			os.Exit(1)
+		}
 	}
+
 }
