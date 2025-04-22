@@ -118,7 +118,8 @@ func CheckInvalidVersion(json *string) []ValidationError {
 // Values that should be invalid when used in a field that contains some identifying information:
 // - n/a
 // - single special characters like "-" or "/"
-var invalidNameRe = regexp.MustCompile(`^(-|/|n/a)$`)
+// - URLs (they should go into collectionUrl)
+var invalidNameRe = regexp.MustCompile(`^(-|/|n/a|https?://.*)$`)
 
 func CheckValidVendor(json *string) []ValidationError {
 	if gjson.Get(*json, `cveMetadata.state`).String() != "PUBLISHED" {
