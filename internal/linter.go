@@ -201,7 +201,7 @@ func (l *Linter) Print(format string) {
 		if len(l.Results) == 0 {
 			return
 		}
-		fmt.Println("CVE,CNA,File,RuleName,ErrorCode,ErrorText")
+		fmt.Println("CVE,CNA,File,RuleName,RuleCode,ErrorPath,ErrorText")
 		for _, r := range l.Results {
 			fmt.Printf("%s,%s,%s,%s,%s,%s,%s\n", r.CveId, r.Cna, r.File, r.Rule.Name, r.Rule.Code, r.Error.JsonPath, r.Error.Text)
 		}
