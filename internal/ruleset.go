@@ -72,4 +72,58 @@ var RuleSet = map[string]Rule{
 		Description: "References contain an invalid self-reference value",
 		CheckFunc:   rules.CheckSelfReference,
 	},
+	"E011": {
+		Code:        "E011",
+		Name:        "check-unicode-escape-sequences",
+		Description: "Descriptions do not contain Unicode escape sequences; UTF-8 characters should be used instead",
+		CheckFunc:   rules.CheckUnicodeEscapeSequences,
+	},
+	"E012": {
+		Code:        "E012",
+		Name:        "check-purl-format",
+		Description: "PURL (Package URL) strings are valid and follow the specification",
+		CheckFunc:   rules.CheckPurlFormat,
+	},
+	"E013": {
+		Code:        "E013",
+		Name:        "check-purl-consistency",
+		Description: "PURL data is consistent with component vendor/product information",
+		CheckFunc:   rules.CheckPurlConsistency,
+	},
+	"E014": {
+		Code:        "E014",
+		Name:        "check-cna-rules-v4-basic",
+		Description: "CVE record meets basic CNA Rules v4.0 requirements (CVE ID format, state validity)",
+		CheckFunc:   rules.CheckCNARulesV4_0Basic,
+	},
+	"E015": {
+		Code:        "E015",
+		Name:        "check-cna-rules-v4-descriptions",
+		Description: "CVE record meets CNA Rules v4.0 description requirements (at least one English description)",
+		CheckFunc:   rules.CheckCNARulesV4_0Descriptions,
+	},
+	"E016": {
+		Code:        "E016",
+		Name:        "check-cna-rules-v4-references",
+		Description: "CVE record meets CNA Rules v4.0 reference requirements (at least one reference present)",
+		CheckFunc:   rules.CheckCNARulesV4_0References,
+	},
+	"E017": {
+		Code:        "E017",
+		Name:        "check-cna-rules-v4-metrics",
+		Description: "CVE record meets CNA Rules v4.0 metrics requirements (valid CVSS scores and severity)",
+		CheckFunc:   rules.CheckCNARulesV4_0Metrics,
+	},
+	"E018": {
+		Code:        "E018",
+		Name:        "check-cna-rules-v4-timeline",
+		Description: "CNA Rules v4.0 timeline entries have required fields (event, eventDate)",
+		CheckFunc:   rules.CheckCNARulesV4_0Timeline,
+	},
+	"E019": {
+		Code:        "E019",
+		Name:        "check-cna-rules-v4-credits",
+		Description: "CNA Rules v4.0 credit entries have required structure (user or organization)",
+		CheckFunc:   rules.CheckCNARulesV4_0Credits,
+	},
 }
