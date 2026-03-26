@@ -3,6 +3,7 @@ package rules
 import (
 	"fmt"
 	"github.com/tidwall/gjson"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 )
@@ -60,5 +61,47 @@ func CheckLeadingTrailingSpace(json *string) []ValidationError {
 		}
 		return true
 	})
+	return errors
+}
+
+func CheckUnicodeEscapeSequences(json *string) []ValidationError {
+	var errors []ValidationError
+
+	state := gjson.Get(*json, `cveMetadata.state`).String()
+	if state != CveRecordStatePublished && state != CveRecordStateRejected {
+		return errors
+	}
+
+	// Pattern to match Unicode escape sequences like \uXXXX or \uXXXXXXXX (both 4 and 8 digit variants)
+	unicodeEscapePattern := regexp.MustCompile(`\\u[0-9a-fA-F]{4}(?:[0-9a-fA-F]{4})?`)
+
+	// Check descriptions
+	d := gjson.Get(*json, `containers.cna.descriptions.#.value`)
+	d.ForEach(func(key, value gjson.Result) bool {
+		text := value.String()
+		if unicodeEscapePattern.MatchString(text) {
+			errors = append(errors, ValidationError{
+				Text:     fmt.Sprintf("Unicode escape sequences found in description; UTF-8 characters should be used instead"),
+				JsonPath: value.Path(*json),
+			})
+		}
+		return true
+	})
+
+	// Check rejection reasons if REJECTED
+	if state == CveRecordStateRejected {
+		r := gjson.Get(*json, `containers.cna.rejectedReasons.#.value`)
+		r.ForEach(func(key, value gjson.Result) bool {
+			text := value.String()
+			if unicodeEscapePattern.MatchString(text) {
+				errors = append(errors, ValidationError{
+					Text:     fmt.Sprintf("Unicode escape sequences found in rejection reason; UTF-8 characters should be used instead"),
+					JsonPath: value.Path(*json),
+				})
+			}
+			return true
+		})
+	}
+
 	return errors
 }
