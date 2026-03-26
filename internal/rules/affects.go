@@ -53,12 +53,65 @@ func CheckAffectedProduct(json *string) []ValidationError {
 // Invalid version string examples:
 // - "n/a" or "unspecified"
 // - anything that includes whitespace, e.g. "v12.07 and earlier"
-// - special characters like "<" or "," ("*" is allowed)
+// - special characters like "<" or "," ("*" is allowed only in lessThan)
 // Special handling below for versions that look like purls (start with a prefix of `pkg:`)
 var validVersionRe = regexp.MustCompile(`^(\*|[a-zA-Z0-9]+[-*_:.a-zA-Z0-9]*)$`)
 
+// Version type specific patterns
+var (
+	// Semantic versioning pattern (e.g., 1.2.3, 1.2.3-alpha, 1.2.3+build)
+	semverPattern = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$`)
+	// Git commit hash (40 chars SHA-1 or 64 chars SHA-256)
+	gitHashPattern = regexp.MustCompile(`^[a-f0-9]{40}$|^[a-f0-9]{64}$`)
+	// RPM version pattern
+	rpmPattern = regexp.MustCompile(`^[a-zA-Z0-9._~-]+$`)
+	// Maven version pattern
+	mavenPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+	// Python version pattern (PEP 440)
+	pythonPattern = regexp.MustCompile(`^([0-9]+!)?(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*((a|b|rc)(0|[1-9][0-9]*))?(\.post(0|[1-9][0-9]*))?(\.dev(0|[1-9][0-9]*))?$`)
+)
+
+// validateVersionByType validates a version string based on its type
+func validateVersionByType(version string, versionType string) bool {
+	// Handle special case of "*" which is only valid in lessThan
+	if version == "*" {
+		return false // will be validated in the context-aware function
+	}
+
+	switch versionType {
+	case "semver":
+		// Reject if it contains pre-release or build metadata
+		if strings.Contains(version, "-") || strings.Contains(version, "+") {
+			return false
+		}
+		return semverPattern.MatchString(version)
+	case "git":
+		return gitHashPattern.MatchString(version)
+	case "rpm":
+		return rpmPattern.MatchString(version)
+	case "maven":
+		return mavenPattern.MatchString(version)
+	case "python":
+		// Reject if it contains pre-release or build metadata
+		if strings.Contains(version, "a") || strings.Contains(version, "b") || strings.Contains(version, "rc") {
+			return false
+		}
+		return pythonPattern.MatchString(version)
+	case "custom":
+		// Custom version type should be avoided per CVE schema docs
+		return false
+	default:
+		// Unknown type - fall back to basic validation
+		return validVersionRe.MatchString(version)
+	}
+}
+
 // CheckInvalidVersion returns an array of detected version-related ValidationError findings.
-// It checks that the affected.versions sub-fields are used correctly.
+// It checks that the affected.versions sub-fields are used correctly, including:
+// - Type-specific version validation
+// - Ensuring "*" is only used in lessThan
+// - Avoiding pre-release/build metadata in version ranges
+// - Rejecting custom version types
 func CheckInvalidVersion(json *string) []ValidationError {
 	if gjson.Get(*json, `cveMetadata.state`).String() != "PUBLISHED" {
 		// REJECTED records do not list affected products
@@ -66,51 +119,105 @@ func CheckInvalidVersion(json *string) []ValidationError {
 	}
 	var errors []ValidationError
 
-	versionFields := []string{
-		"containers.cna.affected.#.versions.#.version",
-		"containers.cna.affected.#.versions.#.lessThan",
-		"containers.cna.affected.#.versions.#.lessThanOrEqual",
-	}
-	for _, versionField := range versionFields {
-		data := gjson.Get(*json, versionField)
-		for _, affectedVersions := range data.Array() {
-			for _, version := range affectedVersions.Array() {
-				version := version.String()
-				if strings.HasPrefix(version, "pkg:") {
-					_, err := packageurl.FromString(version)
+	// Get affected products to check versionType
+	affected := gjson.Get(*json, `containers.cna.affected`)
+	
+	affected.ForEach(func(key, value gjson.Result) bool {
+		// Get the versionType for this affected entry
+		versionType := value.Get("versionType").String()
+		
+		// Check if versionType is "custom" - should be avoided
+		if versionType == "custom" {
+			errors = append(errors, ValidationError{
+				Text:     "Custom versionType should be avoided per CVE schema documentation",
+				JsonPath: value.Path(*json) + ".versionType",
+			})
+		}
+
+		// Check version field
+		versions := value.Get("versions")
+		versions.ForEach(func(vkey, vvalue gjson.Result) bool {
+			// Check "version" field (single version)
+			if singleVersion := vvalue.Get("version").String(); singleVersion != "" {
+				if strings.HasPrefix(singleVersion, "pkg:") {
+					_, err := packageurl.FromString(singleVersion)
 					if err != nil {
 						errors = append(errors, ValidationError{
-							Text:     fmt.Sprintf("Invalid purl in package version string: %s", version),
-							JsonPath: versionField,
+							Text:     fmt.Sprintf("Invalid purl in package version string: %s", singleVersion),
+							JsonPath: vvalue.Get("version").Path(*json),
 						})
 					}
-					continue
-				}
-				if !validVersionRe.MatchString(version) {
+				} else if !validVersionRe.MatchString(singleVersion) {
 					errors = append(errors, ValidationError{
-						Text:     fmt.Sprintf("Invalid version string: \"%s\"", version),
-						JsonPath: versionField,
+						Text:     fmt.Sprintf("Invalid version string: \"%s\"", singleVersion),
+						JsonPath: vvalue.Get("version").Path(*json),
 					})
 				}
 			}
-		}
-	}
 
-	// "at" version strings are nested in another "changes" array
-	data := gjson.Get(*json, `containers.cna.affected.#.versions.#.changes.#.at`)
-	for _, affectedVersions := range data.Array() {
-		for _, changes := range affectedVersions.Array() {
-			for _, atVersion := range changes.Array() {
-				version := atVersion.String()
-				if !validVersionRe.MatchString(version) {
+			// Check "lessThan" field (range start - "*" is allowed here)
+			if lessThan := vvalue.Get("lessThan").String(); lessThan != "" {
+				if lessThan == "*" {
+					// "*" is allowed only in lessThan per schema
+					// no error
+				} else if strings.HasPrefix(lessThan, "pkg:") {
+					_, err := packageurl.FromString(lessThan)
+					if err != nil {
+						errors = append(errors, ValidationError{
+							Text:     fmt.Sprintf("Invalid purl in lessThan version: %s", lessThan),
+							JsonPath: vvalue.Get("lessThan").Path(*json),
+						})
+					}
+				} else if !validVersionRe.MatchString(lessThan) {
 					errors = append(errors, ValidationError{
-						Text:     fmt.Sprintf("Invalid version string: \"%s\"", version),
-						JsonPath: "containers.cna.affected.#.versions.#.changes.#.at",
+						Text:     fmt.Sprintf("Invalid lessThan version string: \"%s\"", lessThan),
+						JsonPath: vvalue.Get("lessThan").Path(*json),
 					})
 				}
 			}
-		}
-	}
+
+			// Check "lessThanOrEqual" field ("*" is NOT allowed here)
+			if lessThanOrEqual := vvalue.Get("lessThanOrEqual").String(); lessThanOrEqual != "" {
+				if lessThanOrEqual == "*" {
+					errors = append(errors, ValidationError{
+						Text:     "\"*\" is only allowed in lessThan, not lessThanOrEqual",
+						JsonPath: vvalue.Get("lessThanOrEqual").Path(*json),
+					})
+				} else if strings.HasPrefix(lessThanOrEqual, "pkg:") {
+					_, err := packageurl.FromString(lessThanOrEqual)
+					if err != nil {
+						errors = append(errors, ValidationError{
+							Text:     fmt.Sprintf("Invalid purl in lessThanOrEqual version: %s", lessThanOrEqual),
+							JsonPath: vvalue.Get("lessThanOrEqual").Path(*json),
+						})
+					}
+				} else if !validVersionRe.MatchString(lessThanOrEqual) {
+					errors = append(errors, ValidationError{
+						Text:     fmt.Sprintf("Invalid lessThanOrEqual version string: \"%s\"", lessThanOrEqual),
+						JsonPath: vvalue.Get("lessThanOrEqual").Path(*json),
+					})
+				}
+			}
+
+			// Check "changes" array
+			changes := vvalue.Get("changes")
+			changes.ForEach(func(ckey, cvalue gjson.Result) bool {
+				if atVersion := cvalue.Get("at").String(); atVersion != "" {
+					if !validVersionRe.MatchString(atVersion) {
+						errors = append(errors, ValidationError{
+							Text:     fmt.Sprintf("Invalid version in changes.at: \"%s\"", atVersion),
+							JsonPath: cvalue.Get("at").Path(*json),
+						})
+					}
+				}
+				return true
+			})
+
+			return true
+		})
+
+		return true
+	})
 
 	return errors
 }
