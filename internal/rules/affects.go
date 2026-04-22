@@ -80,10 +80,6 @@ func validateVersionByType(version string, versionType string) bool {
 
 	switch versionType {
 	case "semver":
-		// Reject if it contains pre-release or build metadata
-		if strings.Contains(version, "-") || strings.Contains(version, "+") {
-			return false
-		}
 		return semverPattern.MatchString(version)
 	case "git":
 		return gitHashPattern.MatchString(version)
@@ -92,14 +88,7 @@ func validateVersionByType(version string, versionType string) bool {
 	case "maven":
 		return mavenPattern.MatchString(version)
 	case "python":
-		// Reject if it contains pre-release or build metadata
-		if strings.Contains(version, "a") || strings.Contains(version, "b") || strings.Contains(version, "rc") {
-			return false
-		}
 		return pythonPattern.MatchString(version)
-	case "custom":
-		// Custom version type should be avoided per CVE schema docs
-		return false
 	default:
 		// Unknown type - fall back to basic validation
 		return validVersionRe.MatchString(version)
