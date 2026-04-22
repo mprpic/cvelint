@@ -97,10 +97,9 @@ func validateVersionByType(version string, versionType string) bool {
 
 // CheckInvalidVersion returns an array of detected version-related ValidationError findings.
 // It checks that the affected.versions sub-fields are used correctly, including:
-// - Type-specific version validation
-// - Ensuring "*" is only used in lessThan
-// - Avoiding pre-release/build metadata in version ranges
-// - Rejecting custom version types
+// - Generic character validation via validVersionRe
+// - Type-specific version format validation when versionType is declared
+// - Ensuring "*" is only used in lessThan, not lessThanOrEqual
 func CheckInvalidVersion(json *string) []ValidationError {
 	if gjson.Get(*json, `cveMetadata.state`).String() != "PUBLISHED" {
 		// REJECTED records do not list affected products
@@ -112,20 +111,11 @@ func CheckInvalidVersion(json *string) []ValidationError {
 	affected := gjson.Get(*json, `containers.cna.affected`)
 	
 	affected.ForEach(func(key, value gjson.Result) bool {
-		// Get the versionType for this affected entry
-		versionType := value.Get("versionType").String()
-		
-		// Check if versionType is "custom" - should be avoided
-		if versionType == "custom" {
-			errors = append(errors, ValidationError{
-				Text:     "Custom versionType should be avoided per CVE schema documentation",
-				JsonPath: value.Path(*json) + ".versionType",
-			})
-		}
-
 		// Check version field
 		versions := value.Get("versions")
 		versions.ForEach(func(vkey, vvalue gjson.Result) bool {
+			versionType := vvalue.Get("versionType").String()
+
 			// Check "version" field (single version)
 			if singleVersion := vvalue.Get("version").String(); singleVersion != "" {
 				if strings.HasPrefix(singleVersion, "pkg:") {
@@ -139,6 +129,11 @@ func CheckInvalidVersion(json *string) []ValidationError {
 				} else if !validVersionRe.MatchString(singleVersion) {
 					errors = append(errors, ValidationError{
 						Text:     fmt.Sprintf("Invalid version string: \"%s\"", singleVersion),
+						JsonPath: vvalue.Get("version").Path(*json),
+					})
+				} else if versionType != "" && !validateVersionByType(singleVersion, versionType) {
+					errors = append(errors, ValidationError{
+						Text:     fmt.Sprintf("Version \"%s\" does not match expected format for type \"%s\"", singleVersion, versionType),
 						JsonPath: vvalue.Get("version").Path(*json),
 					})
 				}
@@ -162,6 +157,11 @@ func CheckInvalidVersion(json *string) []ValidationError {
 						Text:     fmt.Sprintf("Invalid lessThan version string: \"%s\"", lessThan),
 						JsonPath: vvalue.Get("lessThan").Path(*json),
 					})
+				} else if versionType != "" && !validateVersionByType(lessThan, versionType) {
+					errors = append(errors, ValidationError{
+						Text:     fmt.Sprintf("lessThan version \"%s\" does not match expected format for type \"%s\"", lessThan, versionType),
+						JsonPath: vvalue.Get("lessThan").Path(*json),
+					})
 				}
 			}
 
@@ -183,6 +183,11 @@ func CheckInvalidVersion(json *string) []ValidationError {
 				} else if !validVersionRe.MatchString(lessThanOrEqual) {
 					errors = append(errors, ValidationError{
 						Text:     fmt.Sprintf("Invalid lessThanOrEqual version string: \"%s\"", lessThanOrEqual),
+						JsonPath: vvalue.Get("lessThanOrEqual").Path(*json),
+					})
+				} else if versionType != "" && !validateVersionByType(lessThanOrEqual, versionType) {
+					errors = append(errors, ValidationError{
+						Text:     fmt.Sprintf("lessThanOrEqual version \"%s\" does not match expected format for type \"%s\"", lessThanOrEqual, versionType),
 						JsonPath: vvalue.Get("lessThanOrEqual").Path(*json),
 					})
 				}
