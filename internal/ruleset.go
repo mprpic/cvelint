@@ -72,4 +72,10 @@ var RuleSet = map[string]Rule{
 		Description: "References contain an invalid self-reference value",
 		CheckFunc:   rules.CheckSelfReference,
 	},
+	"E011": {
+		Code:        "E011",
+		Name:        "check-custom-version-type",
+		Description: "Version type is not set to 'custom' (should be avoided per schema docs)",
+		CheckFunc:   rules.CheckCustomVersionType,
+	},
 }
