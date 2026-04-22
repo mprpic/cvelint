@@ -216,6 +216,28 @@ func CheckInvalidVersion(json *string) []ValidationError {
 	return errors
 }
 
+func CheckCustomVersionType(json *string) []ValidationError {
+	if gjson.Get(*json, `cveMetadata.state`).String() != "PUBLISHED" {
+		return nil
+	}
+	var errors []ValidationError
+	affected := gjson.Get(*json, `containers.cna.affected`)
+	affected.ForEach(func(key, value gjson.Result) bool {
+		versions := value.Get("versions")
+		versions.ForEach(func(vkey, vvalue gjson.Result) bool {
+			if vvalue.Get("versionType").String() == "custom" {
+				errors = append(errors, ValidationError{
+					Text:     "Custom versionType should be avoided per CVE schema documentation",
+					JsonPath: vvalue.Get("versionType").Path(*json),
+				})
+			}
+			return true
+		})
+		return true
+	})
+	return errors
+}
+
 // Values that should be invalid when used in a field that contains some identifying information:
 // - n/a
 // - single special characters like "-" or "/"
