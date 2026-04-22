@@ -21,9 +21,29 @@ func TestCheckInvalidVersion(t *testing.T) {
 							{
 								"vendor": "example",
 								"product": "product",
-								"versionType": "semver",
 								"versions": [
-									{"version": "1.0.0", "status": "affected"}
+									{"version": "1.0.0", "versionType": "semver", "status": "affected"}
+								]
+							}
+						]
+					}
+				}
+			}`,
+			expectErrors: false,
+			errorCount:   0,
+		},
+		{
+			name: "Valid semver with pre-release",
+			json: `{
+				"cveMetadata": {"state": "PUBLISHED"},
+				"containers": {
+					"cna": {
+						"affected": [
+							{
+								"vendor": "example",
+								"product": "product",
+								"versions": [
+									{"version": "1.0.0-beta.1", "versionType": "semver", "status": "affected"}
 								]
 							}
 						]
@@ -43,9 +63,8 @@ func TestCheckInvalidVersion(t *testing.T) {
 							{
 								"vendor": "example",
 								"product": "product",
-								"versionType": "semver",
 								"versions": [
-									{"version": "1.0.0 and earlier", "status": "affected"}
+									{"version": "1.0.0 and earlier", "versionType": "semver", "status": "affected"}
 								]
 							}
 						]
@@ -56,7 +75,7 @@ func TestCheckInvalidVersion(t *testing.T) {
 			errorCount:   1,
 		},
 		{
-			name: "Asterisk only allowed in lessThan",
+			name: "Asterisk allowed in lessThan",
 			json: `{
 				"cveMetadata": {"state": "PUBLISHED"},
 				"containers": {
@@ -65,9 +84,8 @@ func TestCheckInvalidVersion(t *testing.T) {
 							{
 								"vendor": "example",
 								"product": "product",
-								"versionType": "semver",
 								"versions": [
-									{"lessThan": "*", "status": "affected"}
+									{"lessThan": "*", "versionType": "semver", "status": "affected"}
 								]
 							}
 						]
@@ -87,31 +105,8 @@ func TestCheckInvalidVersion(t *testing.T) {
 							{
 								"vendor": "example",
 								"product": "product",
-								"versionType": "semver",
 								"versions": [
-									{"lessThanOrEqual": "*", "status": "affected"}
-								]
-							}
-						]
-					}
-				}
-			}`,
-			expectErrors: true,
-			errorCount:   1,
-		},
-		{
-			name: "Custom versionType should be avoided",
-			json: `{
-				"cveMetadata": {"state": "PUBLISHED"},
-				"containers": {
-					"cna": {
-						"affected": [
-							{
-								"vendor": "example",
-								"product": "product",
-								"versionType": "custom",
-								"versions": [
-									{"version": "1.0.0", "status": "affected"}
+									{"lessThanOrEqual": "*", "versionType": "semver", "status": "affected"}
 								]
 							}
 						]
@@ -131,9 +126,8 @@ func TestCheckInvalidVersion(t *testing.T) {
 							{
 								"vendor": "example",
 								"product": "product",
-								"versionType": "git",
 								"versions": [
-									{"version": "abcd1234abcd1234abcd1234abcd1234abcd1234", "status": "affected"}
+									{"version": "abcd1234abcd1234abcd1234abcd1234abcd1234", "versionType": "git", "status": "affected"}
 								]
 							}
 						]
@@ -153,9 +147,8 @@ func TestCheckInvalidVersion(t *testing.T) {
 							{
 								"vendor": "example",
 								"product": "product",
-								"versionType": "git",
 								"versions": [
-									{"version": "abcd1234", "status": "affected"}
+									{"version": "abcd1234", "versionType": "git", "status": "affected"}
 								]
 							}
 						]
@@ -175,9 +168,29 @@ func TestCheckInvalidVersion(t *testing.T) {
 							{
 								"vendor": "example",
 								"product": "product",
-								"versionType": "semver",
 								"versions": [
-									{"lessThan": "2.0.0", "status": "affected"}
+									{"lessThan": "2.0.0", "versionType": "semver", "status": "affected"}
+								]
+							}
+						]
+					}
+				}
+			}`,
+			expectErrors: false,
+			errorCount:   0,
+		},
+		{
+			name: "No versionType falls back to generic validation",
+			json: `{
+				"cveMetadata": {"state": "PUBLISHED"},
+				"containers": {
+					"cna": {
+						"affected": [
+							{
+								"vendor": "example",
+								"product": "product",
+								"versions": [
+									{"version": "1.0.0", "status": "affected"}
 								]
 							}
 						]
@@ -197,9 +210,8 @@ func TestCheckInvalidVersion(t *testing.T) {
 							{
 								"vendor": "example",
 								"product": "product",
-								"versionType": "custom",
 								"versions": [
-									{"version": "invalid version!", "status": "affected"}
+									{"version": "invalid version!", "versionType": "semver", "status": "affected"}
 								]
 							}
 						]
@@ -215,6 +227,94 @@ func TestCheckInvalidVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			json := tt.json
 			errors := CheckInvalidVersion(&json)
+
+			if (len(errors) > 0) != tt.expectErrors {
+				t.Errorf("Expected errors: %v, got: %v (errors: %v)", tt.expectErrors, len(errors) > 0, errors)
+			}
+
+			if len(errors) != tt.errorCount {
+				t.Errorf("Expected %d errors, got %d: %v", tt.errorCount, len(errors), errors)
+			}
+		})
+	}
+}
+
+func TestCheckCustomVersionType(t *testing.T) {
+	tests := []struct {
+		name         string
+		json         string
+		expectErrors bool
+		errorCount   int
+	}{
+		{
+			name: "Custom versionType produces warning",
+			json: `{
+				"cveMetadata": {"state": "PUBLISHED"},
+				"containers": {
+					"cna": {
+						"affected": [
+							{
+								"vendor": "example",
+								"product": "product",
+								"versions": [
+									{"version": "1.0.0", "versionType": "custom", "status": "affected"}
+								]
+							}
+						]
+					}
+				}
+			}`,
+			expectErrors: true,
+			errorCount:   1,
+		},
+		{
+			name: "Non-custom versionType is fine",
+			json: `{
+				"cveMetadata": {"state": "PUBLISHED"},
+				"containers": {
+					"cna": {
+						"affected": [
+							{
+								"vendor": "example",
+								"product": "product",
+								"versions": [
+									{"version": "1.0.0", "versionType": "semver", "status": "affected"}
+								]
+							}
+						]
+					}
+				}
+			}`,
+			expectErrors: false,
+			errorCount:   0,
+		},
+		{
+			name: "Rejected record should not be checked",
+			json: `{
+				"cveMetadata": {"state": "REJECTED"},
+				"containers": {
+					"cna": {
+						"affected": [
+							{
+								"vendor": "example",
+								"product": "product",
+								"versions": [
+									{"version": "1.0.0", "versionType": "custom", "status": "affected"}
+								]
+							}
+						]
+					}
+				}
+			}`,
+			expectErrors: false,
+			errorCount:   0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			json := tt.json
+			errors := CheckCustomVersionType(&json)
 
 			if (len(errors) > 0) != tt.expectErrors {
 				t.Errorf("Expected errors: %v, got: %v (errors: %v)", tt.expectErrors, len(errors) > 0, errors)
