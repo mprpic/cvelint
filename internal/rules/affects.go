@@ -73,9 +73,8 @@ var (
 
 // validateVersionByType validates a version string based on its type
 func validateVersionByType(version string, versionType string) bool {
-	// Handle special case of "*" which is only valid in lessThan
 	if version == "*" {
-		return false // will be validated in the context-aware function
+		return false
 	}
 
 	switch versionType {
@@ -101,7 +100,7 @@ func validateVersionByType(version string, versionType string) bool {
 // - Type-specific version format validation when versionType is declared
 // - Ensuring "*" is only used in lessThan, not lessThanOrEqual
 func CheckInvalidVersion(json *string) []ValidationError {
-	if gjson.Get(*json, `cveMetadata.state`).String() != "PUBLISHED" {
+	if gjson.Get(*json, `cveMetadata.state`).String() != CveRecordStatePublished {
 		// REJECTED records do not list affected products
 		return nil
 	}
@@ -202,6 +201,11 @@ func CheckInvalidVersion(json *string) []ValidationError {
 							Text:     fmt.Sprintf("Invalid version in changes.at: \"%s\"", atVersion),
 							JsonPath: cvalue.Get("at").Path(*json),
 						})
+					} else if versionType != "" && !validateVersionByType(atVersion, versionType) {
+						errors = append(errors, ValidationError{
+							Text:     fmt.Sprintf("changes.at version \"%s\" does not match expected format for type \"%s\"", atVersion, versionType),
+							JsonPath: cvalue.Get("at").Path(*json),
+						})
 					}
 				}
 				return true
@@ -217,7 +221,7 @@ func CheckInvalidVersion(json *string) []ValidationError {
 }
 
 func CheckCustomVersionType(json *string) []ValidationError {
-	if gjson.Get(*json, `cveMetadata.state`).String() != "PUBLISHED" {
+	if gjson.Get(*json, `cveMetadata.state`).String() != CveRecordStatePublished {
 		return nil
 	}
 	var errors []ValidationError
