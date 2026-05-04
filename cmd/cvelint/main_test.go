@@ -21,21 +21,22 @@ func TestDetermineCachePath_Environment(t *testing.T) {
 	}
 }
 
-// TestDetermineCachePath_XDG validates XDG_CACHE_HOME environment variable is checked
+// TestDetermineCachePath_XDG validates XDG_CACHE_HOME environment variable is used
 func TestDetermineCachePath_XDG(t *testing.T) {
 	oldCvelint := os.Getenv("CVELINT_CACHE_DIR")
+	oldXDG := os.Getenv("XDG_CACHE_HOME")
 	defer os.Setenv("CVELINT_CACHE_DIR", oldCvelint)
+	defer os.Setenv("XDG_CACHE_HOME", oldXDG)
 
-	// Only test that CVELINT_CACHE_DIR takes priority
 	os.Unsetenv("CVELINT_CACHE_DIR")
 	xdgPath := "/custom/xdg/cache"
+	os.Setenv("XDG_CACHE_HOME", xdgPath)
 
-	// When CVELINT_CACHE_DIR is set, it should be used
-	os.Setenv("CVELINT_CACHE_DIR", xdgPath)
 	path := determineCachePath()
 
-	if path != xdgPath {
-		t.Errorf("Expected cache path '%s' when CVELINT_CACHE_DIR set, got '%s'", xdgPath, path)
+	expected := filepath.Join(xdgPath, "cvelint")
+	if path != expected {
+		t.Errorf("Expected cache path '%s' when XDG_CACHE_HOME set, got '%s'", expected, path)
 	}
 }
 
@@ -51,11 +52,15 @@ func TestDetermineCachePath_Default(t *testing.T) {
 
 	path := determineCachePath()
 
-	// Should contain .cache/cvelint or AppData
 	home, _ := os.UserHomeDir()
-	defaultPath := filepath.Join(home, ".cache", "cvelint")
-	if path != defaultPath {
-		t.Logf("Note: Default path may vary on Windows (AppData), got: %s", path)
+	var expectedPath string
+	if os.PathSeparator == '\\' {
+		expectedPath = filepath.Join(home, "AppData", "Local", "cvelint")
+	} else {
+		expectedPath = filepath.Join(home, ".cache", "cvelint")
+	}
+	if path != expectedPath {
+		t.Errorf("Expected default cache path '%s', got '%s'", expectedPath, path)
 	}
 }
 
