@@ -22,7 +22,7 @@ func determineCachePath() string {
 
 	xdgCachePath := os.Getenv("XDG_CACHE_HOME")
 	if xdgCachePath != "" {
-		cachePath = filepath.Join(xdgCachePath, "cvelint")
+		return filepath.Join(xdgCachePath, "cvelint")
 	}
 	// Default to $HOME/.cache on Linux/macOS or %APPDATA%/ on Windows
 	homeDir, err := os.UserHomeDir()

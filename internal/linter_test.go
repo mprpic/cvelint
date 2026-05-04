@@ -1,14 +1,35 @@
 package internal
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/mprpic/cvelint/internal/rules"
 )
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	old := os.Stdout
+	oldColor := color.Output
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	color.Output = w
+
+	fn()
+
+	w.Close()
+	os.Stdout = old
+	color.Output = oldColor
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	return buf.String()
+}
 
 // TestLinter_Run_Basic validates core linting functionality
 func TestLinter_Run_Basic(t *testing.T) {
@@ -183,7 +204,7 @@ func TestLinter_Run_InvalidJSON(t *testing.T) {
 	}
 }
 
-// TestLinter_Print_TextFormat validates text format output runs without error
+// TestLinter_Print_TextFormat validates text format output content
 func TestLinter_Print_TextFormat(t *testing.T) {
 	files := []string{"test.json"}
 	linter := &Linter{
@@ -208,16 +229,23 @@ func TestLinter_Print_TextFormat(t *testing.T) {
 		},
 	}
 
-	// Test that Print doesn't crash with text format
-	linter.Print("text")
+	output := captureStdout(t, func() { linter.Print("text") })
 
-	// If we got here without panic, the test passes
-	if len(linter.Results) != 1 {
-		t.Errorf("Results were modified during Print()")
+	if !strings.Contains(output, "CVE-2023-0001") {
+		t.Errorf("Text output missing CVE ID, got: %s", output)
+	}
+	if !strings.Contains(output, "E001") {
+		t.Errorf("Text output missing error code, got: %s", output)
+	}
+	if !strings.Contains(output, "Test error") {
+		t.Errorf("Text output missing error text, got: %s", output)
+	}
+	if !strings.Contains(output, "path.to.error") {
+		t.Errorf("Text output missing JSON path, got: %s", output)
 	}
 }
 
-// TestLinter_Print_JSONFormat validates JSON output format runs without error
+// TestLinter_Print_JSONFormat validates JSON output format content
 func TestLinter_Print_JSONFormat(t *testing.T) {
 	files := []string{"test.json"}
 	linter := &Linter{
@@ -241,16 +269,20 @@ func TestLinter_Print_JSONFormat(t *testing.T) {
 		},
 	}
 
-	// Test that JSON format doesn't crash
-	linter.Print("json")
+	output := captureStdout(t, func() { linter.Print("json") })
 
-	// If we got here without panic, the test passes
-	if len(linter.Results) != 1 {
-		t.Errorf("Results were modified during Print()")
+	if !strings.Contains(output, `"cve": "CVE-2023-0001"`) {
+		t.Errorf("JSON output missing CVE ID, got: %s", output)
+	}
+	if !strings.Contains(output, `"errorCode": "E001"`) {
+		t.Errorf("JSON output missing error code, got: %s", output)
+	}
+	if !strings.Contains(output, `"results"`) {
+		t.Errorf("JSON output missing results key, got: %s", output)
 	}
 }
 
-// TestLinter_Print_CSVFormat validates CSV output format runs without error
+// TestLinter_Print_CSVFormat validates CSV output format content
 func TestLinter_Print_CSVFormat(t *testing.T) {
 	files := []string{"test.json"}
 	linter := &Linter{
@@ -274,16 +306,17 @@ func TestLinter_Print_CSVFormat(t *testing.T) {
 		},
 	}
 
-	// Test that CSV format doesn't crash
-	linter.Print("csv")
+	output := captureStdout(t, func() { linter.Print("csv") })
 
-	// If we got here without panic, the test passes
-	if len(linter.Results) != 1 {
-		t.Errorf("Results were modified during Print()")
+	if !strings.Contains(output, "CVE,CNA,File,RuleName,RuleCode,ErrorPath,ErrorText") {
+		t.Errorf("CSV output missing header, got: %s", output)
+	}
+	if !strings.Contains(output, "CVE-2023-0001") {
+		t.Errorf("CSV output missing CVE ID, got: %s", output)
 	}
 }
 
-// TestLinter_PrintSummary_TextFormat validates summary text output
+// TestLinter_PrintSummary_TextFormat validates summary text output content
 func TestLinter_PrintSummary_TextFormat(t *testing.T) {
 	files := []string{}
 	linter := &Linter{
@@ -308,16 +341,20 @@ func TestLinter_PrintSummary_TextFormat(t *testing.T) {
 		},
 	}
 
-	// Test that summary text format doesn't crash
-	linter.PrintSummary("text")
+	output := captureStdout(t, func() { linter.PrintSummary("text") })
 
-	// If we got here without panic, the test passes
-	if len(linter.Results) != 3 {
-		t.Errorf("Results were modified during PrintSummary()")
+	if !strings.Contains(output, "redhat") {
+		t.Errorf("Summary text missing CNA 'redhat', got: %s", output)
+	}
+	if !strings.Contains(output, "ubuntu") {
+		t.Errorf("Summary text missing CNA 'ubuntu', got: %s", output)
+	}
+	if !strings.Contains(output, "2") {
+		t.Errorf("Summary text missing count '2' for redhat E001, got: %s", output)
 	}
 }
 
-// TestLinter_PrintSummary_JSONFormat validates summary JSON output
+// TestLinter_PrintSummary_JSONFormat validates summary JSON output content
 func TestLinter_PrintSummary_JSONFormat(t *testing.T) {
 	files := []string{}
 	linter := &Linter{
@@ -335,16 +372,20 @@ func TestLinter_PrintSummary_JSONFormat(t *testing.T) {
 		},
 	}
 
-	// Test that summary JSON format doesn't crash
-	linter.PrintSummary("json")
+	output := captureStdout(t, func() { linter.PrintSummary("json") })
 
-	// If we got here without panic, the test passes
-	if len(linter.Results) != 2 {
-		t.Errorf("Results were modified during PrintSummary()")
+	if !strings.Contains(output, `"cna": "redhat"`) {
+		t.Errorf("Summary JSON missing CNA, got: %s", output)
+	}
+	if !strings.Contains(output, `"errorCode": "E001"`) {
+		t.Errorf("Summary JSON missing error code, got: %s", output)
+	}
+	if !strings.Contains(output, `"errorCount": 2`) {
+		t.Errorf("Summary JSON missing error count, got: %s", output)
 	}
 }
 
-// TestLinter_PrintSummary_CSVFormat validates summary CSV output
+// TestLinter_PrintSummary_CSVFormat validates summary CSV output content
 func TestLinter_PrintSummary_CSVFormat(t *testing.T) {
 	files := []string{}
 	linter := &Linter{
@@ -362,12 +403,16 @@ func TestLinter_PrintSummary_CSVFormat(t *testing.T) {
 		},
 	}
 
-	// Test that summary CSV format doesn't crash
-	linter.PrintSummary("csv")
+	output := captureStdout(t, func() { linter.PrintSummary("csv") })
 
-	// If we got here without panic, the test passes
-	if len(linter.Results) != 2 {
-		t.Errorf("Results were modified during PrintSummary()")
+	if !strings.Contains(output, "CNA,ErrorCode,ErrorName,ErrorCount") {
+		t.Errorf("Summary CSV missing header, got: %s", output)
+	}
+	if !strings.Contains(output, "redhat,E001,test-rule-1,1") {
+		t.Errorf("Summary CSV missing redhat row, got: %s", output)
+	}
+	if !strings.Contains(output, "ubuntu,E002,test-rule-2,1") {
+		t.Errorf("Summary CSV missing ubuntu row, got: %s", output)
 	}
 }
 
