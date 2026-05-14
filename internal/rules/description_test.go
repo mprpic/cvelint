@@ -108,7 +108,7 @@ func TestCheckUnicodeEscapeSequences(t *testing.T) {
 			if tt.expectErrors && tt.errorContains != "" {
 				found := false
 				for _, err := range errors {
-					if err.Text == tt.errorContains || (len(err.Text) > len(tt.errorContains) && 
+					if err.Text == tt.errorContains || (len(err.Text) > len(tt.errorContains) &&
 						err.Text[:len(tt.errorContains)] == tt.errorContains) {
 						found = true
 						break
