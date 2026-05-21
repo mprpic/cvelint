@@ -78,8 +78,8 @@ var RuleSet = map[string]Rule{
 		Description: "Version type is not set to 'custom' (should be avoided per schema docs)",
 		CheckFunc:   rules.CheckCustomVersionType,
 	},
-	"E020": {
-		Code:        "E020",
+	"E012": {
+		Code:        "E012",
 		Name:        "check-unicode-escape-sequences",
 		Description: "Descriptions do not contain Unicode escape sequences; UTF-8 characters should be used instead",
 		CheckFunc:   rules.CheckUnicodeEscapeSequences,
