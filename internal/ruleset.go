@@ -78,6 +78,18 @@ var RuleSet = map[string]Rule{
 		Description: "Version type is not set to 'custom' (should be avoided per schema docs)",
 		CheckFunc:   rules.CheckCustomVersionType,
 	},
+	"E013": {
+		Code:        "E013",
+		Name:        "check-purl-format",
+		Description: "PURL (Package URL) strings are valid and follow the specification",
+		CheckFunc:   rules.CheckPurlFormat,
+	},
+	"E014": {
+		Code:        "E014",
+		Name:        "check-purl-consistency",
+		Description: "PURL data is consistent with component vendor/product information",
+		CheckFunc:   rules.CheckPurlConsistency,
+	},
 	"E020": {
 		Code:        "E020",
 		Name:        "check-unicode-escape-sequences",
