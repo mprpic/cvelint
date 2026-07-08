@@ -15,7 +15,7 @@ func TestCheckCNARulesV4_0Basic(t *testing.T) {
 			name: "Valid CVE ID and state",
 			json: `{
 				"cveMetadata": {
-					"id": "CVE-2023-12345",
+					"cveId": "CVE-2023-12345",
 					"state": "PUBLISHED"
 				},
 				"containers": {"cna": {}}
@@ -27,7 +27,7 @@ func TestCheckCNARulesV4_0Basic(t *testing.T) {
 			name: "Invalid CVE ID format",
 			json: `{
 				"cveMetadata": {
-					"id": "2023-12345",
+					"cveId": "2023-12345",
 					"state": "PUBLISHED"
 				},
 				"containers": {"cna": {}}
@@ -39,7 +39,7 @@ func TestCheckCNARulesV4_0Basic(t *testing.T) {
 			name: "Invalid state",
 			json: `{
 				"cveMetadata": {
-					"id": "CVE-2023-12345",
+					"cveId": "CVE-2023-12345",
 					"state": "DRAFT"
 				},
 				"containers": {"cna": {}}
