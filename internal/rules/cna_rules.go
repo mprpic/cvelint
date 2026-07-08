@@ -20,16 +20,16 @@ func CheckCNARulesV4_0Basic(json *string) []ValidationError {
 	var errors []ValidationError
 
 	// Check CVE ID format
-	cveId := gjson.Get(*json, `cveMetadata.id`).String()
+	cveId := gjson.Get(*json, `cveMetadata.cveId`).String()
 	if cveId == "" {
 		errors = append(errors, ValidationError{
 			Text:     "CVE ID must be present",
-			JsonPath: "cveMetadata.id",
+			JsonPath: "cveMetadata.cveId",
 		})
 	} else if !strings.HasPrefix(cveId, "CVE-") {
 		errors = append(errors, ValidationError{
 			Text:     fmt.Sprintf("Invalid CVE ID format: %s (must start with CVE-)", cveId),
-			JsonPath: "cveMetadata.id",
+			JsonPath: "cveMetadata.cveId",
 		})
 	}
 
