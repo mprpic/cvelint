@@ -32,6 +32,20 @@ $ ./cvelint -show-rules  # Display available validation rules
 $ ./cvelint -h  # Display help
 ```
 
+CVE JSON can be piped directly to `cvelint` instead of passing a file path:
+
+```bash
+$ cat CVE-2023-3618.json | cvelint
+$ curl -s https://cveawg.mitre.org/api/cve/CVE-2023-3618 | cvelint
+$ echo '{"cveMetadata":...}' | cvelint -select E005 -format json
+```
+
+You can also pass `-` as the file argument to explicitly read from stdin:
+
+```bash
+$ cvelint - < CVE-2023-3618.json
+```
+
 ## GitHub Action
 
 [cvelint-action](https://github.com/jgamblin/cvelint-action) runs daily and produces a CSV and JSON output of all errors in the current CVE v5 data set.
