@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/mprpic/cvelint/internal"
+	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/mprpic/cvelint/internal"
 )
 
 func determineCachePath() string {
@@ -103,13 +105,40 @@ func collectFiles(args []string) ([]string, error) {
 	return files, err
 }
 
+func readStdin(args []string) *string {
+	if len(args) == 1 && args[0] == "-" {
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			log.Fatalf("ERROR: could not read from stdin: %s", err)
+		}
+		content := string(data)
+		return &content
+	}
+	if len(args) == 0 {
+		stat, err := os.Stdin.Stat()
+		if err != nil {
+			return nil
+		}
+		if (stat.Mode() & os.ModeCharDevice) == 0 {
+			data, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				log.Fatalf("ERROR: could not read from stdin: %s", err)
+			}
+			content := string(data)
+			return &content
+		}
+	}
+	return nil
+}
+
 func main() {
 	log.SetFlags(0)
 
 	flag.Usage = func() {
 		w := flag.CommandLine.Output()
-		fmt.Fprintf(w, "Usage of %s: [OPTION] [DIRECTORY|FILE]\n", os.Args[0])
-		fmt.Fprintf(w, "\nIf no directory or file is specified, a clone of the cvelistV5 repo is stored in\n")
+		fmt.Fprintf(w, "Usage of %s: [OPTION] [DIRECTORY|FILE|-]\n", os.Args[0])
+		fmt.Fprintf(w, "\nReads from standard input when data is piped or when - is passed as argument.\n")
+		fmt.Fprintf(w, "If no directory or file is specified, a clone of the cvelistV5 repo is stored in\n")
 		fmt.Fprintf(w, "the location pointed to in CVELINT_CACHE_DIR, or a standard OS cache location.\n\n")
 		flag.PrintDefaults()
 	}
@@ -147,12 +176,20 @@ func main() {
 		os.Exit(0)
 	}
 
-	files, err := collectFiles(args)
-	if err != nil {
-		log.Fatalf("ERROR: %s", err)
-	}
-	if len(files) == 0 {
-		log.Fatal("ERROR: no CVE record JSON files found")
+	stdinInput := readStdin(args)
+
+	var files []string
+	if stdinInput != nil {
+		files = []string{"<stdin>"}
+	} else {
+		var err error
+		files, err = collectFiles(args)
+		if err != nil {
+			log.Fatalf("ERROR: %s", err)
+		}
+		if len(files) == 0 {
+			log.Fatal("ERROR: no CVE record JSON files found")
+		}
 	}
 
 	var ruleCodes = make(map[string]struct{})
@@ -183,7 +220,7 @@ func main() {
 		}
 	}
 
-	linter := internal.Linter{Timestamp: time.Now().UTC(), FileInput: &files}
+	linter := internal.Linter{Timestamp: time.Now().UTC(), FileInput: &files, StdinInput: stdinInput}
 	linter.Run(&selectedRules, cna)
 
 	if summary {

@@ -480,3 +480,181 @@ func TestLinter_Run_MultipleRules(t *testing.T) {
 		}
 	}
 }
+
+// TestLinter_Run_StdinInput validates linting from stdin content
+func TestLinter_Run_StdinInput(t *testing.T) {
+	testCVE := `{
+		"cveMetadata": {
+			"cveId": "CVE-2023-0001",
+			"state": "PUBLISHED",
+			"assignerShortName": "vendor"
+		},
+		"containers": {"cna": {}}
+	}`
+
+	files := []string{"<stdin>"}
+	linter := &Linter{
+		Timestamp:  time.Now().UTC(),
+		FileInput:  &files,
+		StdinInput: &testCVE,
+	}
+
+	errorRule := Rule{
+		Code:        "ERR001",
+		Name:        "test-error",
+		Description: "Test error rule",
+		CheckFunc: func(j *string) []rules.ValidationError {
+			return []rules.ValidationError{
+				{Text: "Error 1", JsonPath: "path.1"},
+			}
+		},
+	}
+
+	selectedRules := []Rule{errorRule}
+	linter.Run(&selectedRules, "")
+
+	if linter.FilesChecked != 1 {
+		t.Errorf("Expected 1 file checked, got %d", linter.FilesChecked)
+	}
+	if len(linter.Results) != 1 {
+		t.Errorf("Expected 1 error, got %d", len(linter.Results))
+	}
+	if linter.Results[0].File != "<stdin>" {
+		t.Errorf("Expected file '<stdin>', got '%s'", linter.Results[0].File)
+	}
+	if linter.Results[0].CveId != "CVE-2023-0001" {
+		t.Errorf("Expected CVE ID 'CVE-2023-0001', got '%s'", linter.Results[0].CveId)
+	}
+}
+
+// TestLinter_Run_StdinInvalidJSON validates error handling for invalid JSON via stdin
+func TestLinter_Run_StdinInvalidJSON(t *testing.T) {
+	invalidJSON := `{ this is not valid json }`
+
+	files := []string{"<stdin>"}
+	linter := &Linter{
+		Timestamp:  time.Now().UTC(),
+		FileInput:  &files,
+		StdinInput: &invalidJSON,
+	}
+
+	dummyRule := Rule{
+		Code: "DUMMY",
+		CheckFunc: func(j *string) []rules.ValidationError {
+			return nil
+		},
+	}
+
+	selectedRules := []Rule{dummyRule}
+	linter.Run(&selectedRules, "")
+
+	if len(linter.GenericErrors) == 0 {
+		t.Errorf("Expected generic error for invalid JSON, got none")
+	}
+	if !strings.Contains(linter.GenericErrors[0], "invalid JSON") {
+		t.Errorf("Expected 'invalid JSON' error, got: %s", linter.GenericErrors[0])
+	}
+}
+
+// TestLinter_Run_StdinCNAFilter validates CNA filtering with stdin input
+func TestLinter_Run_StdinCNAFilter(t *testing.T) {
+	testCVE := `{
+		"cveMetadata": {
+			"cveId": "CVE-2023-0001",
+			"state": "PUBLISHED",
+			"assignerShortName": "vendor1"
+		},
+		"containers": {"cna": {}}
+	}`
+
+	files := []string{"<stdin>"}
+	linter := &Linter{
+		Timestamp:  time.Now().UTC(),
+		FileInput:  &files,
+		StdinInput: &testCVE,
+	}
+
+	errorRule := Rule{
+		Code: "ERR001",
+		CheckFunc: func(j *string) []rules.ValidationError {
+			return []rules.ValidationError{{Text: "Error", JsonPath: "path"}}
+		},
+	}
+
+	selectedRules := []Rule{errorRule}
+	linter.Run(&selectedRules, "vendor2")
+
+	if linter.FilesChecked != 0 {
+		t.Errorf("Expected 0 files checked when CNA doesn't match, got %d", linter.FilesChecked)
+	}
+	if len(linter.Results) != 0 {
+		t.Errorf("Expected 0 results when CNA doesn't match, got %d", len(linter.Results))
+	}
+}
+
+// TestLinter_Run_StdinMissingCveId validates that missing cveId falls back to a placeholder
+func TestLinter_Run_StdinMissingCveId(t *testing.T) {
+	testCVE := `{
+		"cveMetadata": {
+			"state": "PUBLISHED",
+			"assignerShortName": "vendor"
+		},
+		"containers": {"cna": {}}
+	}`
+
+	files := []string{"<stdin>"}
+	linter := &Linter{
+		Timestamp:  time.Now().UTC(),
+		FileInput:  &files,
+		StdinInput: &testCVE,
+	}
+
+	errorRule := Rule{
+		Code: "ERR001",
+		CheckFunc: func(j *string) []rules.ValidationError {
+			return []rules.ValidationError{{Text: "Error", JsonPath: "path"}}
+		},
+	}
+
+	selectedRules := []Rule{errorRule}
+	linter.Run(&selectedRules, "")
+
+	if linter.FilesChecked != 1 {
+		t.Errorf("Expected 1 file checked, got %d", linter.FilesChecked)
+	}
+	if len(linter.Results) != 1 {
+		t.Errorf("Expected 1 result, got %d", len(linter.Results))
+	}
+	if linter.Results[0].CveId != "<unknown>" {
+		t.Errorf("Expected CveId '<unknown>' for missing cveId, got '%s'", linter.Results[0].CveId)
+	}
+}
+
+// TestLinter_Run_StdinNonCVE validates handling of non-CVE JSON via stdin
+func TestLinter_Run_StdinNonCVE(t *testing.T) {
+	nonCVE := `{"key": "value"}`
+
+	files := []string{"<stdin>"}
+	linter := &Linter{
+		Timestamp:  time.Now().UTC(),
+		FileInput:  &files,
+		StdinInput: &nonCVE,
+	}
+
+	dummyRule := Rule{
+		Code: "DUMMY",
+		CheckFunc: func(j *string) []rules.ValidationError {
+			return []rules.ValidationError{{Text: "Error", JsonPath: "path"}}
+		},
+	}
+
+	selectedRules := []Rule{dummyRule}
+	linter.Run(&selectedRules, "")
+
+	if linter.FilesChecked != 0 {
+		t.Errorf("Expected 0 files checked for non-CVE JSON, got %d", linter.FilesChecked)
+	}
+	if len(linter.Results) != 0 {
+		t.Errorf("Expected 0 results for non-CVE JSON, got %d", len(linter.Results))
+	}
+}

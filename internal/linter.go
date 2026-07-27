@@ -19,6 +19,7 @@ import (
 type Linter struct {
 	Timestamp     time.Time
 	FileInput     *[]string
+	StdinInput    *string
 	FilesChecked  int
 	Results       []LintResult
 	GenericErrors []string
@@ -32,7 +33,44 @@ type LintResult struct {
 	Rule
 }
 
+func (l *Linter) runStdin(selectedRules *[]Rule, cna string) {
+	jsonText := *l.StdinInput
+	if !gjson.Valid(jsonText) {
+		l.GenericErrors = append(l.GenericErrors, "Standard input contains invalid JSON")
+		return
+	}
+	recordCna := gjson.Get(jsonText, "cveMetadata.assignerShortName").String()
+	if recordCna == "" {
+		return
+	}
+	if cna != "" && cna != recordCna {
+		return
+	}
+	cveId := gjson.Get(jsonText, "cveMetadata.cveId").String()
+	if cveId == "" {
+		cveId = "<unknown>"
+	}
+	for _, rule := range *selectedRules {
+		errors := rule.CheckFunc(&jsonText)
+		for _, e := range errors {
+			l.Results = append(l.Results, LintResult{
+				File:  "<stdin>",
+				CveId: cveId,
+				Cna:   recordCna,
+				Error: e,
+				Rule:  rule,
+			})
+		}
+	}
+	l.FilesChecked = 1
+}
+
 func (l *Linter) Run(selectedRules *[]Rule, cna string) {
+	if l.StdinInput != nil {
+		l.runStdin(selectedRules, cna)
+		return
+	}
+
 	var checkedFiles int64
 	lintResultsChan := make(chan LintResult)
 	genErrorChan := make(chan string)
